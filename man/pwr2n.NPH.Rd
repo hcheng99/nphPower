@@ -13,8 +13,12 @@ pwr2n.NPH(
   hazR,
   transP1 = c(0, 0),
   transP0 = c(0, 0),
-  Wlist = list(function(x) {     x^0 }),
-  entry_pdf0 = function(x) {     (1/entry) * (x >= 0 & x <= entry) },
+  Wlist = list(function(x) {
+     x^0
+ }),
+  entry_pdf0 = function(x) {
+     (1/entry) * (x >= 0 & x <= entry)
+ },
   entry_pdf1 = entry_pdf0,
   ratio = 1,
   alpha = 0.05,
@@ -24,6 +28,8 @@ pwr2n.NPH(
   k = 100,
   m = 0,
   nreps = 10,
+  varianceType = c("equal"),
+  weightBase = "C",
   summary = TRUE
 )
 }
@@ -62,9 +68,7 @@ function, corresponding to the logrank test.}
 \item{entry_pdf0}{a function, indicating the probability density function (pdf)
 of enrollment time for control group. The default assumes a uniform distribution
 corresponding to the constant enrollment rate.
-Default: function(x) {
-(1/entry) * (x >= 0 & x <= entry)
-}}
+Default: function(x) {(1/entry) * (x >= 0 & x <= entry)}}
 
 \item{entry_pdf1}{a pdf of enrollment time for treatment
 group. See \code{entry_pdf0}, Default: assume same pdf as control group.}
@@ -91,6 +95,14 @@ Default: 100}
 
 \item{nreps}{an integer, indicating number of iterations in calculating
 the quantile of multivariate normal. See Details.}
+
+\item{varianceType}{Default: \code{equal}. Indicates different variance assumptions
+for the sample size calculation.
+It is not applicable for the maximum weighted logrank test. See details.}
+
+\item{weightBase}{A character, either "\code{F}" or "\code{T}". \code{F} indicates
+a CDF is the base for the weight function used in the weighted logrank or maximum weighted
+logrank test. \code{T} indicates time is the base for weight function. Default: \code{F}}
 
 \item{summary}{a logical value, controlling whether to print the
 summary of calculation, Default: TRUE}
@@ -150,6 +162,12 @@ treatment and control group. The \code{less} option tests
 \eqn{H_0: \Lambda_1 > \Lambda_0} against
 \eqn{H_a: \Lambda_1 <= \Lambda_0}. The \code{greater} option tests
 \eqn{H_0: \Lambda_1 < \Lambda_0} against \eqn{H_a: \Lambda_1 >= \Lambda_0}.
+
+When \code{varianceType} is \code{equal}, the sample size for a two sided test is
+\eqn{(z_{1-\alpha/2}+z_{1-\beta})^2\tilde{\sigma}^2/\mu_w^2}, where \eqn{\tilde{\sigma}^2}
+is the variance estimate under alternative. when \code{varianceType} is not
+\code{equal}. The formula is \eqn{(z_{1-\alpha/2}\sigma_w+z_{1-\beta}\tilde{\sigma})^2/\mu_w^2}.
+Please use \code{equal} variance type for the maximum weighted logrank test.
 }
 \examples{
  #------------------------------------------------------------
@@ -195,8 +213,9 @@ Journal of Statistics, 41(3), 742-761.
 Cheng, H., & He, J. (2021). A Maximum Weighted Logrank Test in Detecting
 Crossing Hazards. arXiv preprint arXiv:2110.03833.
 
-Cheng, H., & He, J. (2021). Sample size calculation for the maximum weighted
-logrank test under non-proportional hazards (to submit)
+Cheng H, He J. Sample size calculation for the combination test under
+nonproportional hazards. Biom J. 2023 Apr;65(4):e2100403. doi: 10.1002/bimj.202100403.
+Epub 2023 Feb 15. PMID: 36789566
 }
 \seealso{
 \code{\link{pwr2n.LR}}

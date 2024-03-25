@@ -7,14 +7,21 @@
 simu.trial(
   type = c("event", "time"),
   trial_param,
-  bsl_dist = c("weibull", "loglogistic"),
+  bsl_dist = c("weibull", "loglogistic", "mix-weibull"),
   bsl_param,
   drop_param0,
   drop_param1 = drop_param0,
-  entry_pdf0 = function(x) {     (1/trial_param[2]) * (x >= 0 & x <= trial_param[2]) },
+  entry_pdf0 = function(x) {
+     (1/trial_param[2]) * (x >= 0 & x <= trial_param[2])
+ },
   entry_pdf1 = entry_pdf0,
+  enrollmentType = NULL,
+  entryP = list(10000, 1),
   HR_fun,
   ratio,
+  cureModel = NULL,
+  cureRate1 = NULL,
+  HR_data = NULL,
   upInt = 100,
   summary = TRUE
 )
@@ -28,10 +35,11 @@ time and required number of events ("\code{event}" type trial)/follow-up time
 ("\code{time}" type trial)}
 
 \item{bsl_dist}{indicates the survival distribution for control group, option:
-c("\code{weibull}", "\code{loglogistic}")}
+c("\code{weibull}", "\code{loglogistic}",\code{mix-weibull})}
 
 \item{bsl_param}{a vector of length 2 with the shape and rate (scale) parameter for the
-survival distribution of control group. See details.}
+weibull or loglogistic survival distribution of control group. A vector of length 3 with
+shape, rate and cure rate for the mix-weibull distribution. See details.}
 
 \item{drop_param0}{a vector of length 2 with shape and scale parameter for the
 weibull distribution of drop-out time for control group}
@@ -43,11 +51,23 @@ weibull distribution of drop-out time for treatment group}
 
 \item{entry_pdf1}{a function describing the pdf of the entry time for treatment.}
 
+\item{enrollmentType}{default value is NULL, indicating a entry time follows specified
+distribution. Specify "\code{piecewise uniform}", indicating entry time follows piecewise uniform}
+
+\item{entryP}{if \code{enrollmentType} is piecewise uniform. \code{entryP} should be provided with
+a list containing the enrollment rate at each interval}
+
 \item{HR_fun}{a function describing the hazard ratio function between treatment
 and control group}
 
 \item{ratio}{allocation ratio between treatment and control group.
 For example, \code{ratio}=2 if 2:1 allocation is used.}
+
+\item{cureModel}{specifies the cure model. "\code{PHCM}" and "\code{PHCRM}".}
+
+\item{cureRate1}{specifies the cure rate for the susceptible population in the experimental group if the cure model is \code{PHCM}.}
+
+\item{HR_data}{a matrix consisting of covariates values}
 
 \item{upInt}{a value indicating the upper bound used in the \code{uniroot} function.
 See details.  Default: 100}
@@ -90,11 +110,12 @@ design.
 \details{
 The loglogistic distribution for the event time has the
 survival function \eqn{S(x)=b^a/(b^a+x^a)} and hazard function
-\eqn{\lambda(x)=a/b(x/b)^(a-1)/(1+(t/b)^a)},, where \eqn{a} is the shape parameter
-and \eqn{b} is the scale parameter. The weibull distribution for event time and drop-out time has the survival function \eqn{f(x)=exp(-(xb)^a)}
-and hazard function \eqn{\lambda(x)=ab(xb)^a-1}, where \eqn{a} is the shape parameter
+\eqn{\lambda(x)=a/b(x/b)^{a-1}/(1+(t/b)^a)}, where \eqn{a} is the shape parameter
+and \eqn{b} is the scale parameter. The weibull distribution for event time and drop-out
+time has the survival function \eqn{S(x)=exp(-(xb)^a)}
+and hazard function \eqn{\lambda(x)=ab(xb)^{a-1}}, where \eqn{a} is the shape parameter
 and \eqn{b} is the rate parameter. The median of weibull
-distribution is \eqn{(ln(2)^(1/a)/b)}. If drop out or loss to follow-up are
+distribution is \eqn{(ln(2)^{1/a}/b)}. If drop out or loss to follow-up are
 do not need to be considered, a very small rate parameter \eqn{b} can be chosen
 such that the median time is greatly larger than the study duration. The default
 entry time is uniformly distributed within the enrollment period by default.
@@ -151,5 +172,5 @@ Bender, R., Augustin, T., & Blettner, M. (2005). Generating survival times to si
 hazards models. Statistics in medicine, 24(11), 1713-1723.
 }
 \seealso{
-\code{\link[stats]{uniroot}}
+\code{\link[stats]{Weibull}}, \code{\link[stats]{integrate}}, \code{\link[stats]{Logistic}}, \code{\link[stats]{Uniform}}, \code{\link[stats]{optimize}}, \code{\link[stats]{uniroot}}
 }

@@ -65,19 +65,26 @@ pwr2n.LR <- function( method    = c("schoenfeld","freedman")
                          w=c(1/(1+ratio),ratio/(1+ratio)))
   ## calculate the number of events
  if (alternative == "two.sided"){
-   numerator=(stats::qnorm(1-alpha/2)+stats::qnorm(1-beta))^2
+   #numerator=(stats::qnorm(1-alpha/2)+stats::qnorm(1-beta))^2
+   side <- 2
  } else if (alternative == "one.sided"){
-   numerator=(stats::qnorm(1-alpha)+stats::qnorm(1-beta))^2
+   #numerator=(stats::qnorm(1-alpha)+stats::qnorm(1-beta))^2
+   side <- 1
  } else {
    stop ("alternative must be either 'two-sided' or 'one-sided'!")
  }
+  numerator=(stats::qnorm(1-alpha/side)+stats::qnorm(1-beta))^2
   if (method == "schoenfeld"){
     Dnum=numerator*(1+ratio)^2/ratio/log(HR)^2
+    # calculate the observed HR for schoenfeld's formula
+      obs_hr <- exp(-sqrt((1+ratio)^2/ratio/Dnum)*stats::qnorm(1-alpha/side))
 
   }else if (method=="freedman"){
     Dnum=numerator*(1+HR*ratio)^2/ratio/(1-HR)^2
+    obs_hr <- ((sqrt(Dnum*ratio)/stats::qnorm(1-alpha/side))-1)/((sqrt(Dnum*ratio)/stats::qnorm(1-alpha/side))+ratio)
   }
   N=Dnum /erate
+
 
   inparam <- c("Method", "Lambda1/Lambda0/HR","Entry Time", "Follow-up Time",
                "Allocation Ratio", "Type I Error", "Type II Error",
@@ -91,8 +98,8 @@ pwr2n.LR <- function( method    = c("schoenfeld","freedman")
              alternative,paste0(Lparam,collapse = ","))
   inputdata <- data.frame(parameter=inparam, value=inval)
   outparam <- c("Number of Events", "Number of Total Sampe Size",
-                "Overall Event Rate")
-  outval <- round(c(Dnum, N, Dnum/N),digits=3)
+                "Overall Event Rate","Observed HR")
+  outval <- c(round(c(Dnum, N, Dnum/N),digits=3),obs_hr)
   outputdata <- data.frame(parameter=outparam, value=outval)
   summaryout <- list(input=inputdata,output=outputdata)
   if(summary ==TRUE){
@@ -108,7 +115,7 @@ pwr2n.LR <- function( method    = c("schoenfeld","freedman")
     print(outputdata, row.names = FALSE)
 
   }
-  return(list(eventN=Dnum,totalN=N,summary=summaryout))
+  return(list(eventN=Dnum,totalN=N,obsHR=obs_hr,summary=summaryout))
 }
 
 cal_event <- function(

@@ -17,6 +17,8 @@ pwr2n.NPH<- function(method = "MaxLR"
                      ,k        = 100
                      ,m = 0
                      ,nreps = 10
+                     ,varianceType = c("equal") # not applicable for combination test
+                     ,weightBase = "C" # C for CDF ； T for time
                      ,summary = TRUE
 
 ){
@@ -60,22 +62,41 @@ pwr2n.NPH<- function(method = "MaxLR"
   }
   wn <- length(Wlist)
   W <- matrix(NA,nrow=nrow(pdat),ncol=wn)
+ # print("step1:")
   ## calculate the variance-covariance matrix
   Vmat <- matrix(NA,nrow=wn,ncol=wn)
   event <- c()
   if (alternative=="two.sided"){
-    part2=(qnorm(1-alpha/2)+qnorm(1-beta))^2
+    div <- 2
+    #part2=(qnorm(1-alpha/2)+qnorm(1-beta))^2
   }else {
-    part2=(qnorm(1-alpha)+qnorm(1-beta))^2
+    #part2=(qnorm(1-alpha)+qnorm(1-beta))^2
+    div <- 1
   }
+  part2=(qnorm(1-alpha/div)+qnorm(1-beta))^2
   for (j in 1:wn){
-    W[,j] <- Wlist[[j]](1-pdat$S) # to be consistent with MWLR test
+    if (weightBase == "C"){
+      W[,j] <- Wlist[[j]](1-pdat$S) # to be consistent with MWLR test
+    } else if (weightBase == "T"){
+      W[,j] <- Wlist[[j]](pdat$ti)
+    }
+
     wgt <- W[,j]
-    part1=t(pdat$rho)%*%(pdat$eta*wgt^2)
+
     part3=t(pdat$rho)%*%(pdat$gamma*wgt)
     part3=part3^2
-    event[j] <- part1*part2/part3
+    if (varianceType=="equal"){
+      part1=t(pdat$rho)%*%(pdat$eta*wgt^2)
+      event[j] <- part1*part2/part3
+    } else{
+      # different variance for the sample size
+      pdat$eta_new <- ratio/(ratio+1)^2
+      part1_1 <- t(pdat$rho)%*%(pdat$eta*wgt^2)
+      part1_2 <- t(pdat$rho)%*%(pdat$eta_new*wgt^2)
+      event[j] <- (qnorm(1-alpha/div)*sqrt(part1_2)+qnorm(1-beta)*sqrt(part1_1))^2/part3
+    }
   }
+  #print("step2:")
   #print(c(part1,part2,part3))
   ## get the min and max sample size
   E_min=min(event)
@@ -147,7 +168,8 @@ pwr2n.NPH<- function(method = "MaxLR"
     else {break}
 
   }
-
+  #print("step3:")
+  #print(c(event, power,dnum, wn))
   eprob <- stats::weighted.mean(c(pdat$C_E[num],pdat$E_E[num]),w=c(1,ratio))
   Nsize <- dnum/eprob
   ## 2022-01-19
@@ -172,7 +194,7 @@ pwr2n.NPH<- function(method = "MaxLR"
     print(outputdata, row.names = FALSE)
   }
   summaryoutput <- list(input = inputdata, output = outputdata)
-
+ # print("step4:")
   inputfun <-list(
     alpha = alpha,
     beta = beta,
@@ -187,6 +209,7 @@ pwr2n.NPH<- function(method = "MaxLR"
     Weightfunctions = Wlist
   )
   names(event) <- paste0("w", 1:wn)
+  #print("step5:")
   listall <- list( eventN  = dnum
                    ,totalN = Nsize
                    ,pwr = as.numeric(power)
@@ -203,6 +226,7 @@ pwr2n.NPH<- function(method = "MaxLR"
 
   )
   class(listall) <-"NPHpwr"
+  #print("step6:")
   return(listall)
 
 

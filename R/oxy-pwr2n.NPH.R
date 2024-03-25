@@ -35,9 +35,7 @@
 #' @param entry_pdf0 a function, indicating the probability density function (pdf)
 #' of enrollment time for control group. The default assumes a uniform distribution
 #' corresponding to the constant enrollment rate.
-#' Default: function(x) {
-#'    (1/entry) * (x >= 0 & x <= entry)
-#'}
+#' Default: function(x) {(1/entry) * (x >= 0 & x <= entry)}
 #' @param entry_pdf1 a pdf of enrollment time for treatment
 #' group. See \code{entry_pdf0}, Default: assume same pdf as control group.
 #' @param ratio an integer, indicating the randomization ratio between treatment
@@ -55,6 +53,12 @@
 #' @param m a value within 0 and 1.
 #' @param nreps an integer, indicating number of iterations in calculating
 #' the quantile of multivariate normal. See Details.
+#' @param varianceType Default: \code{equal}. Indicates different variance assumptions
+#'  for the sample size calculation.
+#' It is not applicable for the maximum weighted logrank test. See details.
+#' @param weightBase A character, either "\code{F}" or "\code{T}". \code{F} indicates
+#' a CDF is the base for the weight function used in the weighted logrank or maximum weighted
+#' logrank test. \code{T} indicates time is the base for weight function. Default: \code{F}
 #' @param summary a logical value, controlling whether to print the
 #' summary of calculation, Default: TRUE
 #' @return
@@ -103,6 +107,12 @@
 #' \eqn{H_a: \Lambda_1 <= \Lambda_0}. The \code{greater} option tests
 #'\eqn{H_0: \Lambda_1 < \Lambda_0} against \eqn{H_a: \Lambda_1 >= \Lambda_0}.
 #'
+#'When \code{varianceType} is \code{equal}, the sample size for a two sided test is
+#'\eqn{(z_{1-\alpha/2}+z_{1-\beta})^2\tilde{\sigma}^2/\mu_w^2}, where \eqn{\tilde{\sigma}^2}
+#' is the variance estimate under alternative. when \code{varianceType} is not
+#' \code{equal}. The formula is \eqn{(z_{1-\alpha/2}\sigma_w+z_{1-\beta}\tilde{\sigma})^2/\mu_w^2}.
+#' Please use \code{equal} variance type for the maximum weighted logrank test.
+#'
 #' @references
 #'
 #' Brendel, M., Janssen, A., Mayer, C. D., & Pauly, M. (2014). Weighted logrank
@@ -113,8 +123,9 @@
 #' Crossing Hazards. arXiv preprint arXiv:2110.03833.
 #'
 #'
-#' Cheng, H., & He, J. (2021). Sample size calculation for the maximum weighted
-#'  logrank test under non-proportional hazards (to submit)
+#' Cheng H, He J. Sample size calculation for the combination test under
+#' nonproportional hazards. Biom J. 2023 Apr;65(4):e2100403. doi: 10.1002/bimj.202100403.
+#' Epub 2023 Feb 15. PMID: 36789566
 #' @examples
 #'  #------------------------------------------------------------
 #'  ## Delayed treatment effects using maxcombo test
@@ -158,7 +169,6 @@
 #' @importFrom stats cov2cor weighted.mean na.omit
 #' @importFrom mvtnorm qmvnorm pmvnorm
 
-###input parameters
 pwr2n.NPH<- function(method = "MaxLR"
                      ,entry   = 1
                      ,fup      = 1
@@ -178,6 +188,8 @@ pwr2n.NPH<- function(method = "MaxLR"
                      ,k        = 100
                      ,m = 0
                      ,nreps = 10
+                     ,varianceType = c("equal") # not applicable for combination test
+                     ,weightBase = "C" # C for CDF ； T for time
                      ,summary = TRUE
 
 ){
@@ -198,8 +210,8 @@ pwr2n.NPH<- function(method = "MaxLR"
   # 0.0001
   ## 2022-01-19 or control hazard is Inf
   if (m==0){
-     if (CtrlHaz(0)==0|CtrlHaz(0)==Inf|hazR(0)==0|hazR(0)==Inf){
-       x[1] <- 1/k*0.1}
+    if (CtrlHaz(0)==0|CtrlHaz(0)==Inf|hazR(0)==0|hazR(0)==Inf){
+      x[1] <- 1/k*0.1}
   }
 
   ctrlRate <- CtrlHaz(x)
@@ -221,22 +233,41 @@ pwr2n.NPH<- function(method = "MaxLR"
   }
   wn <- length(Wlist)
   W <- matrix(NA,nrow=nrow(pdat),ncol=wn)
+  # print("step1:")
   ## calculate the variance-covariance matrix
   Vmat <- matrix(NA,nrow=wn,ncol=wn)
   event <- c()
   if (alternative=="two.sided"){
-    part2=(qnorm(1-alpha/2)+qnorm(1-beta))^2
+    div <- 2
+    #part2=(qnorm(1-alpha/2)+qnorm(1-beta))^2
   }else {
-    part2=(qnorm(1-alpha)+qnorm(1-beta))^2
+    #part2=(qnorm(1-alpha)+qnorm(1-beta))^2
+    div <- 1
   }
+  part2=(qnorm(1-alpha/div)+qnorm(1-beta))^2
   for (j in 1:wn){
-    W[,j] <- Wlist[[j]](1-pdat$S) # to be consistent with MWLR test
+    if (weightBase == "C"){
+      W[,j] <- Wlist[[j]](1-pdat$S) # to be consistent with MWLR test
+    } else if (weightBase == "T"){
+      W[,j] <- Wlist[[j]](pdat$ti)
+    }
+
     wgt <- W[,j]
-    part1=t(pdat$rho)%*%(pdat$eta*wgt^2)
+
     part3=t(pdat$rho)%*%(pdat$gamma*wgt)
     part3=part3^2
-    event[j] <- part1*part2/part3
+    if (varianceType=="equal"){
+      part1=t(pdat$rho)%*%(pdat$eta*wgt^2)
+      event[j] <- part1*part2/part3
+    } else{
+      # different variance for the sample size
+      pdat$eta_new <- ratio/(ratio+1)^2
+      part1_1 <- t(pdat$rho)%*%(pdat$eta*wgt^2)
+      part1_2 <- t(pdat$rho)%*%(pdat$eta_new*wgt^2)
+      event[j] <- (qnorm(1-alpha/div)*sqrt(part1_2)+qnorm(1-beta)*sqrt(part1_1))^2/part3
+    }
   }
+  #print("step2:")
   #print(c(part1,part2,part3))
   ## get the min and max sample size
   E_min=min(event)
@@ -308,7 +339,8 @@ pwr2n.NPH<- function(method = "MaxLR"
     else {break}
 
   }
-
+  #print("step3:")
+  #print(c(event, power,dnum, wn))
   eprob <- stats::weighted.mean(c(pdat$C_E[num],pdat$E_E[num]),w=c(1,ratio))
   Nsize <- dnum/eprob
   ## 2022-01-19
@@ -333,7 +365,7 @@ pwr2n.NPH<- function(method = "MaxLR"
     print(outputdata, row.names = FALSE)
   }
   summaryoutput <- list(input = inputdata, output = outputdata)
-
+  # print("step4:")
   inputfun <-list(
     alpha = alpha,
     beta = beta,
@@ -348,6 +380,7 @@ pwr2n.NPH<- function(method = "MaxLR"
     Weightfunctions = Wlist
   )
   names(event) <- paste0("w", 1:wn)
+  #print("step5:")
   listall <- list( eventN  = dnum
                    ,totalN = Nsize
                    ,pwr = as.numeric(power)
@@ -364,9 +397,36 @@ pwr2n.NPH<- function(method = "MaxLR"
 
   )
   class(listall) <-"NPHpwr"
+  #print("step6:")
   return(listall)
 
 
+}
+
+summary.NPHpwr <- function(object,...){
+  summary <- object$summaryout
+  wl  <- lapply(object$inputfun$Weightfunctions,deparse)
+  wlc <- paste0(noquote(unlist(noquote(lapply(wl,"[",3)))),collapse=";")
+  wlc <- gsub("\\s","",wlc)
+  input <- data.frame(Parameter = c(summary$input$parameter,"Weight Functions"),
+                      Value = c(summary$input$value, wlc))
+
+  output <- summary$output
+  names(input) <- c("__Parameter__", "__Value__")
+  names(output) <- c("__Parameter__", "__Value__")
+  cat("------------------------------------------ \n ")
+  cat("----Summary of the Input Parameters---- \n")
+  cat("------------------------------------------ \n ")
+
+  print(input, row.names = FALSE, right=FALSE, justify = "left")
+  cat("------------------------------------------ \n ")
+  cat("-----Summary of the Output Parameters----- \n ")
+  cat("------------------------------------------ \n ")
+  print(output, row.names = FALSE, right=FALSE,  justify = "left")
+  cat("------------------------------------------ \n ")
+
+
+   cat("Notes: the base (x) of weight function is \n K-M estimate of CDF ")
 }
 #' @title Summary of the \code{pwr2n.NPH} function
 #' @description Summarize and print the results of \code{pwr2n.NPH} function
@@ -379,17 +439,17 @@ pwr2n.NPH<- function(method = "MaxLR"
 #' @rdname summary.NPHpwr
 #' @export
 summary.NPHpwr <- function(object,...){
-   summary <- object$summaryout
-   wl  <- lapply(object$inputfun$Weightfunctions,deparse)
-   wlc <- paste0(noquote(unlist(noquote(lapply(wl,"[",3)))),collapse=";")
-   wlc <- gsub("\\s","",wlc)
-   input <- data.frame(Parameter = c(summary$input$parameter,"Weight Functions"),
-                       Value = c(summary$input$value, wlc))
+  summary <- object$summaryout
+  wl  <- lapply(object$inputfun$Weightfunctions,deparse)
+  wlc <- paste0(noquote(unlist(noquote(lapply(wl,"[",3)))),collapse=";")
+  wlc <- gsub("\\s","",wlc)
+  input <- data.frame(Parameter = c(summary$input$parameter,"Weight Functions"),
+                      Value = c(summary$input$value, wlc))
 
-   output <- summary$output
-   names(input) <- c("__Parameter__", "__Value__")
-   names(output) <- c("__Parameter__", "__Value__")
-   cat("------------------------------------------ \n ")
+  output <- summary$output
+  names(input) <- c("__Parameter__", "__Value__")
+  names(output) <- c("__Parameter__", "__Value__")
+  cat("------------------------------------------ \n ")
   cat("----Summary of the Input Parameters---- \n")
   cat("------------------------------------------ \n ")
 
@@ -524,3 +584,4 @@ plot.NPHpwr<- function(x,type=c("hazard","survival","dropout","event","censor"),
   #   graphics::mtext(paste(paste0("Statistic",1:wn,sep=":"),round(x$stat.mat[,1],3),
   #                         collapse = "  "),side=3,cex=0.7)
 }
+

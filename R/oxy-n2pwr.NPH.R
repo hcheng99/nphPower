@@ -27,9 +27,7 @@
 #' @param entry_pdf0 a function, indicating the probability density function (pdf)
 #' of enrollment/entry time for control group. The default assumes a uniform distribution
 #' corresponding to the constant enrollment rate.
-#' Default: function(x) {
-#'    (1/entry) * (x >= 0 & x <= entry)
-#'}
+#' Default: function(x){(1/entry) * (x >= 0 & x <= entry)}
 #' @param entry_pdf1 a pdf function of enrollment/entry time for treatment
 #' @param eventN the number of events
 #' @param totalN the number of subjects
